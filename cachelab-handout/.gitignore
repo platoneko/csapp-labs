@@ -1,3 +1,5 @@
 /traces/
 csim-ref
 test-csim
+csim
+*.tar

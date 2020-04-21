@@ -27,7 +27,7 @@
 #include <errno.h>
 #include "cachelab.h"
 
-//#define DEBUG_ON 
+// #define DEBUG_ON 
 #define ADDRESS_LENGTH 64
 
 /* Type: Memory address */
@@ -93,6 +93,8 @@ void initCache()
 void freeCache()
 {
     int i;
+    for (i = 0; i < S; ++i) free(cache[i]);
+    free(cache);
 }
 
 
@@ -105,14 +107,48 @@ void freeCache()
 void accessData(mem_addr_t addr)
 {
     int i;
-    unsigned long long int eviction_lru = ULONG_MAX;
+    unsigned long long int eviction_lru = 0;
     unsigned int eviction_line = 0;
     mem_addr_t set_index = (addr >> b) & set_index_mask;
     mem_addr_t tag = addr >> (s+b);
 
     cache_set_t cache_set = cache[set_index];
-
-
+    char hit = 0;
+    for (i=0; i < E; ++i) {
+        if (cache_set[i].valid) {
+            if (cache_set[i].tag == tag) {
+                ++hit_count;
+                cache_set[i].lru = 0;
+                hit = 1;
+            } else {
+                ++cache_set[i].lru;
+            }
+        }
+    }
+    if (hit) {
+        if (verbosity) printf(" hit");
+        return;
+    }
+    ++miss_count;
+    if (verbosity) printf(" miss");
+    for (i=0; i < E; ++i) {
+        if (!cache_set[i].valid) {
+            cache_set[i].tag = tag;
+            cache_set[i].lru = 0;
+            cache_set[i].valid = 1;
+            return;
+        } else {
+            if (cache_set[i].lru > eviction_lru) {
+                eviction_lru = cache_set[i].lru;
+                eviction_line = i;
+            }
+        }
+    }
+    cache_set[eviction_line].tag = tag;
+    cache_set[eviction_line].lru = 0;
+    cache_set[eviction_line].valid = 1;
+    ++eviction_count;
+    if (verbosity) printf(" eviction");
 }
 
 
@@ -122,10 +158,43 @@ void accessData(mem_addr_t addr)
 void replayTrace(char* trace_fn)
 {
     char buf[1000];
+    char op;
     mem_addr_t addr=0;
     unsigned int len=0;
     FILE* trace_fp = fopen(trace_fn, "r");
 
+    #ifdef DEBUG_ON
+    #endif
+
+    while (fgets(buf, 1000, trace_fp)) {
+        sscanf(buf, " %c%llx,%u", &op, &addr, &len);
+        #ifdef DEBUG_ON
+        printf("%c %llx %u", op, addr, len);
+        #endif
+        switch (op)
+        {
+        case 'I':
+            break;
+        case 'S':
+            if (verbosity) printf("%c %llx,%u", op, addr, len);
+            accessData(addr);
+            if (verbosity) printf("\n");
+            break;
+        case 'L':
+            if (verbosity) printf("%c %llx,%u", op, addr, len);
+            accessData(addr);
+            if (verbosity) printf("\n");
+            break;
+        case 'M':
+            if (verbosity) printf("%c %llx,%u", op, addr, len);
+            accessData(addr);
+            accessData(addr);
+            if (verbosity) printf("\n");
+            break;
+        default:
+            break;
+        }
+    }
 
     fclose(trace_fp);
 }
