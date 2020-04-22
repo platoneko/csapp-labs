@@ -3,3 +3,8 @@ csim-ref
 test-csim
 csim
 *.tar
+*.o
+tracegen
+*.tmp
+test-trans
+trace.*
